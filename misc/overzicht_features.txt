@@ -1,0 +1,34 @@
+Bord map maken: 
+	- Design
+	- Type tiles en effect 
+	- pop ups 
+Spelers class: 
+	- munten
+	- sterren
+	- positie 
+- avatar / color
+- host
+- client object
+
+HUD Class: 
+
+Client class:
+- player object 
+- connected_server_lobby
+- current game 
+
+Server Class:
+- player object
+- IP 
+- connected player objects
+
+MINIGAMES: 
+	- Top down object dodge game
+	- Platformer
+	- Agar.io clone 
+
+Main Menu:
+	- Start: 
+- create / join lobby
+- lobby visual 
+	- Wincondition selection
