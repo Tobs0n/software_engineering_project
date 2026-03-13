@@ -2,8 +2,7 @@ from player import Player
 import pygame
 
 class Hud:
-    def __init__(self, players: list[Player]):
-        
+    def __init__(self, players):
         self.players = players
 
     def draw(self, surface):

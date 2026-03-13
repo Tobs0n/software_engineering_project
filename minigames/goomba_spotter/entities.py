@@ -3,8 +3,8 @@ from collections import namedtuple
 
 UnitType = namedtuple("UnitType", ["color", "radius"])
 
-GOOMBA = UnitType(color=(139, 90, 43), radius=20)
-BUZZY_BEETLE = UnitType(color=(50, 50, 180), radius=15)
+# GOOMBA = UnitType(color=(139, 90, 43), radius=20)
+# BUZZY_BEETLE = UnitType(color=(50, 50, 180), radius=15)
 
 
 class Entity(pygame.sprite.Sprite):
