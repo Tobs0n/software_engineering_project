@@ -48,22 +48,22 @@ def main(players):
             unit.draw(screen)
             if unit.is_offscreen(screen.get_width()): # Remove the unit if offscreen
                 bounce = random.randint(0, 1)
-                if bounce == 0:
-                    active_units.remove(unit)
-                else:
+                if bounce == 0:                     # Gives a chance of a unit bouncing back, making the game harder
                     unit.x_speed *= -1
+                else:
+                    active_units.remove(unit)    
 
         hud.draw(screen)
         pygame.display.flip()
         clock.tick(60)
     
         spawn_timer += 1
-        if spawn_timer % 30 == 0 and spawn_timer < 3600: # If the timer hits 30 (every 0.5 seconds), spawn a new random unit
-            spawn = random.choice(unit_types)            # Also stop spawning after a minute
+        if spawn_timer % 45 == 0 and spawn_timer < 2700: # If the timer hits 30 (every 0.66 seconds), spawn a new random unit
+            spawn = random.choice(unit_types)            # Also stop spawning after 45 seconds
             y_position = random.randint(50, 550)
             y_speed = random.uniform(-2, 2)
             
-            side = random.choice(["left", "right"])
+            side = random.choice(["left", "right"]) # Select on which side a unit spawns
             if side == "left":
                 x_position = -10
                 x_speed = random.uniform(4, 10)
@@ -76,7 +76,7 @@ def main(players):
             if spawn == unit_1:
                 correct_count += 1
         
-        if spawn_timer == 3780: # Players get three extra seconds to increase their counter
+        if spawn_timer == 2880: # Players get three extra seconds to increase their counter if they want
             show_results(screen, players, correct_count)
             running = False
 
@@ -90,7 +90,7 @@ def show_results(screen, players, correct_count):
     x_pos = (screen.get_width() - correct_text.get_width()) // 2
     screen.blit(correct_text, (x_pos, 100))
 
-    ranking = sorted(players, key=lambda p: abs(p.goombacounter - correct_count))
+    ranking = sorted(players, key=lambda p: abs(p.goombacounter - correct_count)) # Sort players on how well they did
     best_score = abs(ranking[0].goombacounter - correct_count)
     winners = [p for p in ranking if abs(p.goombacounter - correct_count) == best_score]
     
@@ -106,7 +106,7 @@ def show_results(screen, players, correct_count):
         screen.blit(text, (x_pos, 200 + i * 70))
 
     pygame.display.flip()
-    pygame.time.wait(5000) # Show for 5 seconds
+    pygame.time.wait(8000) # Show for scorebord for 8 seconds
 
 if __name__ == "__main__":
     players = [Player(1, "Speler 1"), Player(2, "Speler 2"), Player(3, "Speler 3"), Player(4, "Speler 4")]
