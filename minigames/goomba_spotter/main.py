@@ -73,20 +73,28 @@ def show_results(screen, players, correct_count):
     font_small = pygame.font.SysFont(None, 36)
     screen.fill((0, 0, 0))
 
-    winner = min(players, key=lambda p: abs(p.goombacounter - correct_count))
+    correct_text = font_small.render(f"The correct count was {correct_count}", True, (0, 0, 255))
+    x_pos = (screen.get_width() - correct_text.get_width()) // 2
+    screen.blit(correct_text, (x_pos, 100))
 
-    for i, player in enumerate(players):
-        if player == winner:
+    ranking = sorted(players, key=lambda p: abs(p.goombacounter - correct_count))
+    best_score = abs(ranking[0].goombacounter - correct_count)
+    winners = [p for p in ranking if abs(p.goombacounter - correct_count) == best_score]
+    
+    for i, player in enumerate(ranking):
+        if player in winners:
             color = (0, 255, 0)
-            text = font_big.render(f"The winner is {player.player_name}: {player.goombacounter}", True, color)
-        else: 
+            text = font_big.render(f"Winner: {player.player_name}: {player.goombacounter}", True, color)
+        else:
             color = (255, 255, 255)
             text = font_small.render(f"{player.player_name}: {player.goombacounter}", True, color)
-        screen.blit(text, (200, 200 + i * 50))
+        screen_width = screen.get_width()
+        x_pos = (screen_width - text.get_width()) // 2
+        screen.blit(text, (x_pos, 200 + i * 70))
 
     pygame.display.flip()
     pygame.time.wait(5000) # Show for 5 seconds
 
 if __name__ == "__main__":
-    players = [Player(1, "Speler 1"), Player(2, "Speler 2")]
+    players = [Player(1, "Speler 1"), Player(2, "Speler 2"), Player(3, "Speler 3"), Player(4, "Speler 4")]
     main(players)
