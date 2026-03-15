@@ -22,7 +22,7 @@ def main(players):
     font = pygame.font.SysFont(None, 36)
 
     # PLAYER SETUP
-    # 1. Besturing instellen voor maximaal 4 spelers
+    # Besturing instellen voor maximaal 4 spelers
     controls = [
         {'up': pygame.K_w, 'down': pygame.K_s, 'left': pygame.K_a, 'right': pygame.K_d},      # P1
         {'up': pygame.K_UP, 'down': pygame.K_DOWN, 'left': pygame.K_LEFT, 'right': pygame.K_RIGHT}, # P2
@@ -39,10 +39,10 @@ def main(players):
         pygame.Vector2(WIDTH - 100, HEIGHT - 100)
     ]
     start_directions = [
-        pygame.Vector2(20, 0),  # P1 gaat naar rechts
-        pygame.Vector2(-20, 0), # P2 gaat naar links (het veld in!)
-        pygame.Vector2(20, 0),  # P3 gaat naar rechts
-        pygame.Vector2(-20, 0)  # P4 gaat naar links
+        pygame.Vector2(20, 0),  
+        pygame.Vector2(-20, 0), 
+        pygame.Vector2(20, 0),  
+        pygame.Vector2(-20, 0)  
     ]
 
     for i, p in enumerate(players):
@@ -190,7 +190,6 @@ def main(players):
 
 # --- TEST SECTIE ---
 if __name__ == "__main__":
-    # We gebruiken nu de ECHTE Player class uit player.py
     test_players = [
         Player(1, "TEST spelertje 1", (0, 255, 0)),
         Player(2, "TEST Spelertje 2", (0, 100, 255))
