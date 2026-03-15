@@ -241,6 +241,8 @@ class App:
         self.my_player: Player | None = None
         self.lobby:     Lobby | None  = None
         self.engine:    GameEngine    = GameEngine(self.screen)
+        self.engine.set_sync_callback(self._on_sync_out)
+        self._is_host: bool = False   # set when lobby state arrives
 
         self._state = "menu"   # menu | lobby | controls | game | results | gameover
 
@@ -278,6 +280,8 @@ class App:
         for msg_type, payload in self.client.poll():
             if   msg_type == MsgType.LOBBY_STATE: self._on_lobby_state(payload)
             elif msg_type == MsgType.GAME_START:  self._on_game_start(payload)
+            elif msg_type == MsgType.GAME_STATE:  self._on_game_state(payload)
+            elif msg_type == MsgType.INPUT:       self._on_input(payload)
             elif msg_type == MsgType.ERROR:
                 self.menu_screen.error = payload.get("message", "Error")
 
@@ -306,6 +310,7 @@ class App:
             d.get("is_host") and d.get("name") == self.menu_screen.name_text.strip()
             for d in players_data
         )
+        self._is_host = self.lobby_screen.is_host
         if self._state == "menu":
             self._state = "lobby"
 
@@ -328,11 +333,43 @@ class App:
 
         game_cls = GAME_REGISTRY.get(game_key, BombGame)
         game     = game_cls()
-        self.engine.load_game(game, players)
+        self.engine.load_game(game, players, is_authority=self._is_host)
 
         self._controls_game  = game_cls
         self._controls_timer = 4.0
         self._state          = "controls"
+
+    def _on_game_state(self, payload: dict) -> None:
+        """
+        [PEER] Received from authority via server relay.
+        Forward to engine which calls game.apply_sync_state().
+        Only meaningful while a game is running.
+        """
+        if self._state == "game":
+            self.engine.apply_network_state(payload)
+
+    def _on_input(self, payload: dict) -> None:
+        """
+        [AUTHORITY] A peer's input arrived via server relay.
+        Forward to engine which calls game.on_input_received().
+        """
+        if self._state == "game":
+            player_id = payload.pop("player_id", "")
+            self.engine.apply_network_input(player_id, payload)
+
+    def _on_sync_out(self, data: dict) -> None:
+        """
+        Called by Game._broadcast_state() (authority) and Game._send_input() (peer).
+        The Game base class tags the dict with _type='state' or _type='input'.
+        We route to the correct network message accordingly.
+        """
+        msg_type_tag = data.pop("_type", "state")
+        if msg_type_tag == "state":
+            # Authority pushing state to all peers
+            self.client.send(MsgType.GAME_STATE, data)
+        else:
+            # Peer sending input to authority
+            self.client.send(MsgType.INPUT, data)
 
     # ── Per-frame update ──────────────────────────────────────────────────────
 

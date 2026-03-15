@@ -82,6 +82,7 @@ class Server:
         elif msg_type == MsgType.JOIN_LOBBY:   self._on_join_lobby(conn, payload)
         elif msg_type == MsgType.START_GAME:   self._on_start_game(conn)
         elif msg_type == MsgType.INPUT:        self._on_input(conn, payload)
+        elif msg_type == MsgType.GAME_STATE:   self._on_game_state(conn, payload)
 
     # ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -143,6 +144,19 @@ class Server:
         for c, p in list(self._clients.items()):
             if c != conn and p in lobby.players:
                 self._send(c, MsgType.INPUT, payload)
+
+    def _on_game_state(self, conn: socket.socket, payload: dict):
+        """
+        Relay authoritative game state from the host to all other clients.
+        Only the host should ever send GAME_STATE — non-hosts send INPUT only.
+        The server does not validate this; it trusts the sender is the host.
+        """
+        lobby = self._lobby_of(conn)
+        if lobby is None:
+            return
+        for c, p in list(self._clients.items()):
+            if c != conn and p in lobby.players:
+                self._send(c, MsgType.GAME_STATE, payload)
 
     def _on_disconnect(self, conn: socket.socket):
         player = self._clients.pop(conn, None)

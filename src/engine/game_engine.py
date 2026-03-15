@@ -1,8 +1,8 @@
 from __future__ import annotations
 import pygame
+from typing import Callable
 
 from .world import World
-from .world_config import WorldConfig
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -15,38 +15,48 @@ class GameEngine:
     Drives the per-frame game loop.
 
     dt comes FROM the App's clock — the engine never calls clock.tick() itself.
-    This prevents the bug where an idle engine clock accumulates time while on
-    the controls/lobby screen, then dumps a huge dt on the first game frame.
 
-    Usage (from main_client.py):
-        engine.load_game(game_instance, players)
-        # each pygame frame:
-        still_running = engine.tick(events, dt)   # dt from App.clock.tick()
+    sync_callback is wired by the App:
+      - For the authority (host):  calls client.send(GAME_STATE, state)
+      - For a peer:                calls client.send_input(data)
+    The Game base class routes _broadcast_state() and _send_input() through
+    this single callback; the App decides what to do with each.
     """
 
     def __init__(self, screen: pygame.Surface):
-        self.screen:     pygame.Surface = screen
-        self.world:      World | None   = None
-        self.game:       Game | None    = None
-        self.is_running: bool           = False
-        self.last_dt:    float          = 0.0   # last frame dt, readable by games
+        self.screen:        pygame.Surface                     = screen
+        self.world:         World | None                       = None
+        self.game:          Game | None                        = None
+        self.is_running:    bool                               = False
+        self.last_dt:       float                              = 0.0
+        self._sync_cb:      Callable[[dict], None] | None      = None
+
+    # ── Wiring ────────────────────────────────────────────────────────────────
+
+    def set_sync_callback(self, cb: Callable[[dict], None]) -> None:
+        """
+        App calls this once after creating the engine.
+        cb receives whatever the Game passes to _broadcast_state / _send_input.
+        """
+        self._sync_cb = cb
 
     # ── Game loading / swapping ───────────────────────────────────────────────
 
-    def load_game(self, game: Game, players: list[Player]) -> None:
-        """Tear down any current game, wire up the new one, and call setup()."""
+    def load_game(self, game: Game, players: list[Player],
+                  is_authority: bool = False) -> None:
         if self.game is not None:
             self._teardown()
 
-        self.game         = game
-        self.game.engine  = self
-        self.game.players = players
+        self.game              = game
+        self.game.engine       = self
+        self.game.players      = players
+        self.game.is_authority = is_authority
+        self.game._sync_callback = self._sync_cb
 
         config     = self.game.get_world_config()
         self.world = World(config)
         self.world.add_collision_callback(self.game.on_collision)
 
-        # Create per-player game extensions and attach them
         for player in players:
             ext = self.game.create_extension(player)
             player.set_extension(ext)
@@ -54,22 +64,16 @@ class GameEngine:
         self.game.setup()
         self.is_running = True
 
-    def swap_game(self, game: Game, players: list[Player]) -> None:
-        """Hot-swap to a new minigame (used by Lobby between rounds)."""
-        self.load_game(game, players)
+    def swap_game(self, game: Game, players: list[Player],
+                  is_authority: bool = False) -> None:
+        self.load_game(game, players, is_authority)
 
-    # ── Per-frame tick (called from main loop) ────────────────────────────────
+    # ── Per-frame tick ────────────────────────────────────────────────────────
 
     def tick(self, events: list[pygame.event.Event], dt: float) -> bool:
-        """
-        Process one frame.  dt is provided by the caller (App.clock).
-        Returns False once the current game is over.
-        The caller is responsible for calling pygame.display.flip().
-        """
         if not self.is_running:
             return False
 
-        # Cap dt to 100ms so a lag spike never skips through an entire timer.
         self.last_dt = min(dt, 0.1)
 
         self.game.update(events, self.last_dt)
@@ -87,6 +91,18 @@ class GameEngine:
 
     def stop(self) -> None:
         self.is_running = False
+
+    # ── Network state passthrough ─────────────────────────────────────────────
+
+    def apply_network_state(self, state: dict) -> None:
+        """Called by App when a GAME_STATE message arrives from the authority."""
+        if self.game and not self.game.is_authority:
+            self.game.apply_sync_state(state)
+
+    def apply_network_input(self, player_id: str, input_data: dict) -> None:
+        """Called by App when an INPUT message arrives (authority only)."""
+        if self.game and self.game.is_authority:
+            self.game.on_input_received(player_id, input_data)
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
