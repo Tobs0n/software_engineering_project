@@ -1,15 +1,22 @@
 import pygame 
+import os
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, x, y):
+    def __init__(self, x, y, player_num, controls):
         super().__init__()
         # Grootte speler
-        self.image = pygame.Surface((40, 40))
-        self.rect = self.image.get_rect(topleft=(x,y))  #"hitbox" van de speler1
-        self.image.fill("red") #kleur 
         
-        # De positie en hitbox
-        self.rect = self.image.get_rect(topleft=(x, y))
+
+        self.sprite_path = os.path.dirname(__file__)
+        self.sprites_dir = os.path.join(self.sprite_path, "sprites", f"player_{player_num}", f"p_{player_num}.png")
+
+        self.image = pygame.image.load(self.sprites_dir).convert_alpha()
+
+        
+        self.rect = self.image.get_rect(topleft=(x,y))  #"hitbox" van de speler1
+        self.controls = controls
+        
+    
         
         #Snelheid van de movement
         self.speed = 5
@@ -23,11 +30,11 @@ class Player(pygame.sprite.Sprite):
         keys = pygame.key.get_pressed()
         
         # Beweeg in 4 richtingen
-        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+        if keys[self.controls['left']]:
             self.rect.x -= self.speed
-        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+        if keys[self.controls['right']]:
             self.rect.x += self.speed
-        if keys[pygame.K_UP] or keys[pygame.K_w]:
+        if keys[self.controls['up']]:
             self.rect.y -= self.speed
-        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+        if keys[self.controls['down']]:
             self.rect.y += self.speed
