@@ -26,7 +26,6 @@ class Game:
             self.background = pygame.transform.scale(self.background, (800, 600))
         except pygame.error as e:
             print(f"Fout bij laden achtergrond: {e}")
-            # Fallback kleur als de png ontbreekt
             self.background = pygame.Surface((800, 600))
             self.background.fill((30, 30, 30))
 

@@ -5,21 +5,14 @@ class Player(pygame.sprite.Sprite):
     def __init__(self, x, y, player_num, controls):
         super().__init__()
         # Grootte speler
-        
-
         self.sprite_path = os.path.dirname(__file__)
         self.sprites_dir = os.path.join(self.sprite_path, "sprites", f"player_{player_num}", f"p_{player_num}.png")
-
         self.image = pygame.image.load(self.sprites_dir).convert_alpha()
-
-        
         self.rect = self.image.get_rect(topleft=(x,y))  #"hitbox" van de speler1
         self.controls = controls
-        
-    
-        
         #Snelheid van de movement
         self.speed = 5
+        self.lives = 3
 
     def update(self):
         self.move()

@@ -10,6 +10,7 @@ class Tiles(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(topleft=(x, y))
         self.speed = 4
         self.score = 0
+        self.lives = 3
 
         self.frames = []
 
@@ -46,6 +47,7 @@ class Tiles(pygame.sprite.Sprite):
         if self.rect.top > 600:
             self.kill()
             return True
+        
     
         # 1. Animatie logica
         if self.frames:
