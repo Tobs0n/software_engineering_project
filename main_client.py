@@ -18,16 +18,14 @@ from src.session.lobby_state import LobbyState
 from src.engine.game_engine import GameEngine
 from src.abstract.player import Player
 from src.minigames.bomb.bomb_game import BombGame
-from src.minigames.platformer.platformer_game import PlatformerGame
 
 
 # ── Registry: add new minigames here ─────────────────────────────────────────
 GAME_REGISTRY: dict[str, type] = {
     "bomb":        BombGame,
-    "platformer":  PlatformerGame,
-    "platformergame": PlatformerGame,
     "bombgame":       BombGame,
 }
+
 
 W, H   = 800, 600
 FPS    = 60
@@ -253,7 +251,7 @@ class App:
         self._controls_timer = 4.0
 
         self.playlist = GamePlaylist(
-            games=[BombGame, PlatformerGame],
+            games=[BombGame],
             mode=PlaylistMode.RANDOM_NO_REPEAT,
             max_rounds=6,
         )
