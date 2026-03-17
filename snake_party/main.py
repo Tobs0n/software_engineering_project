@@ -192,6 +192,6 @@ def main(players):
 if __name__ == "__main__":
     test_players = [
         Player(1, "TEST spelertje 1", (0, 255, 0)),
-        Player(2, "TEST Spelertje 2", (0, 100, 255))
+        #Player(2, "TEST Spelertje 2", (0, 100, 255))
     ]
     main(test_players)
