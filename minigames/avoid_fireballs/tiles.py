@@ -16,7 +16,7 @@ class Tiles(pygame.sprite.Sprite):
 
          # Animatie variabelen
         self.current_frame = 0
-        self.animation_speed = 0.15 # Hoe hoger, hoe trager de animatie
+        self.animation_speed = 0.15 
         
         if self.frames:
             self.image = self.frames[0]
@@ -49,14 +49,14 @@ class Tiles(pygame.sprite.Sprite):
             return True
         
     
-        # 1. Animatie logica
+        #Sprite animatie fireball
         if self.frames:
             self.current_frame += self.animation_speed
             if self.current_frame >= len(self.frames):
                 self.current_frame = 0
             self.image = self.frames[int(self.current_frame)]
 
-        # 2. Beweging
+        #Movement fireball
         self.rect.y += self.speed
         if self.rect.top > 600:
             self.kill()

@@ -12,7 +12,7 @@ class Game:
         self.current_path = os.path.dirname(__file__)
         bg_path = os.path.join(self.current_path, "sprites", "background", "bg.png")
 
-        # In je __init__ methode:
+       
         self.SPAWN_EVENT = pygame.USEREVENT + 1
         pygame.time.set_timer(self.SPAWN_EVENT, 1000) 
 
@@ -115,7 +115,7 @@ class Game:
         self.all_sprites.add(new_tile)
         self.tiles.add(new_tile)
 
-#Running the game 
+
 if __name__ == "__main__":
     game = Game()
     game.run()
