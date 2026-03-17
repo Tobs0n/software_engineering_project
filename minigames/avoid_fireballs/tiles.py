@@ -11,7 +11,6 @@ class Tiles(pygame.sprite.Sprite):
         self.speed = 4
         self.score = 0
         self.lives = 3
-
         self.frames = []
 
          # Animatie variabelen
@@ -22,12 +21,7 @@ class Tiles(pygame.sprite.Sprite):
             self.image = self.frames[0]
             self.rect = self.image.get_rect(topleft=(x, y))
         
-       
-
-     
-
         self.current_path = os.path.dirname(__file__)
-
         self.sprites_dir = os.path.join(self.current_path, "sprites", "fireball")
 
        
