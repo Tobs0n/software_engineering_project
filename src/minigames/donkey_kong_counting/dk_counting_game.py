@@ -168,9 +168,9 @@ class DKCountingGame(Game):
                 self.results = {}
 
         elif self.state == "SLAPEN":
-            # Host can press space as well
+            # Host can press SPACE or ENTER to stop the timer
             for e in events:
-                if e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
+                if e.type == pygame.KEYDOWN and e.key in (pygame.K_SPACE, pygame.K_RETURN):
                     self._register_press(self._local_player())
 
             if len(self.results) == len(self.players):
@@ -190,7 +190,7 @@ class DKCountingGame(Game):
 
     def _update_peer(self, events, dt):
         for e in events:
-            if e.type == pygame.KEYDOWN and e.key == pygame.K_SPACE:
+            if e.type == pygame.KEYDOWN and e.key in (pygame.K_SPACE, pygame.K_RETURN):
                 self._send_input({"action": "press"})
 
     def _change_state(self, new_state: str):
@@ -265,7 +265,7 @@ class DKCountingGame(Game):
         return out
 
     def get_keybindings(self) -> dict[str, str]:
-        return {"SPACE": "Press to stop the timer"}
+        return {"SPACE / ENTER": "Press to stop the timer"}
 
     def render(self, surface):
         self._load_assets()
