@@ -3,4 +3,4 @@ class Player:
         self.player_value = value
         self.player_name = name
         self.color = color
-        self.goombacounter = 0 # Dit mag je hernoemen naar 'score' als je wilt
+        self.score = 0 # Dit mag je hernoemen naar 'score' als je wilt
