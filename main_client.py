@@ -18,12 +18,15 @@ from src.session.lobby_state import LobbyState
 from src.engine.game_engine import GameEngine
 from src.abstract.player import Player
 from src.minigames.bomb.bomb_game import BombGame
+from src.minigames.avoid_fireballs.avoid_fireballs_game import AvoidFireballsGame
 
 
-# ── Registry: add new minigames here ─────────────────────────────────────────
+# ── Registry: add new minigames here ─────────────────────────────────────────────────────────
 GAME_REGISTRY: dict[str, type] = {
-    "bomb":        BombGame,
+    "bomb":           BombGame,
     "bombgame":       BombGame,
+    "avoid_fireballs": AvoidFireballsGame,
+    "avoidfireballs": AvoidFireballsGame,
 }
 
 

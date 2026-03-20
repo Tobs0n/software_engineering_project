@@ -32,30 +32,20 @@ class Tiles(pygame.sprite.Sprite):
                 img = pygame.image.load(self.path).convert_alpha()
                 self.frames.append(img)
 
-       
-          
-        
-
     def update(self):
+        # Movement fireball
         self.rect.y += self.speed
         if self.rect.top > 600:
             self.kill()
-            return True
-        
-    
-        #Sprite animatie fireball
+            return
+
+        # Sprite animatie fireball
         if self.frames:
             self.current_frame += self.animation_speed
             if self.current_frame >= len(self.frames):
                 self.current_frame = 0
             self.image = self.frames[int(self.current_frame)]
 
-        #Movement fireball
-        self.rect.y += self.speed
-        if self.rect.top > 600:
-            self.kill()
-            return True
-        return False
             
 
 

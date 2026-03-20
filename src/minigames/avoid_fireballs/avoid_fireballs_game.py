@@ -5,31 +5,19 @@ import pygame
 from ...abstract.game import Game
 from ...engine.world_config import WorldConfig
 from ...engine.physics_body import PhysicsBody
-from .avoid_fireballs_extension import BombExtension
+from .avoid_fireballs_extension import FireBallExtension
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 PLAYER_SIZE  = 46
 MOVE_SPEED   = 4
-ROUND_TIME   = 45.0
-SYNC_EVERY   = 6   # broadcast authoritative state every N frames
+TILE_SIZE    = 20
+TILE_SPEED   = 100  # pixels per second
+SPAWN_INTERVAL = 1.0  # seconds
 
 
-class BombGame(Game):
+class avoid_fireballs_game(Game):
     """
-    Hot Potato - top-down arena.
-
-    AUTHORITY MODEL SUMMARY
-    ───────────────────────
-    [AUTHORITY]  self._time_left     - host counts down, synced every SYNC_EVERY frames
-    [AUTHORITY]  self._done          - host decides when game ends
-    [AUTHORITY]  ext.has_bomb        - only host assigns/transfers bomb
-    [AUTHORITY]  ext.lives           - only host subtracts lives
-
-    [LOCAL]      body.position       - each client moves its own player freely
-    [LOCAL]      body.velocity       - same
-    [LOCAL]      ext._last_throw     - cooldown timer; peer trusts authority for result
-
-    [SHARED]     player.color/name   - set once at game start, never changes
+    Game where players avoid falling fireballs 
     """
 
     def __init__(self):
@@ -37,9 +25,10 @@ class BombGame(Game):
         self._font_lg: pygame.font.Font | None = None
         self._font_sm: pygame.font.Font | None = None
 
-        self._time_left: float = ROUND_TIME   # [AUTHORITY]
-        self._done:      bool  = False         # [AUTHORITY]
-        self._frame:     int   = 0             # frame counter for periodic sync
+        self._tiles: list[PhysicsBody] = []
+        self._spawn_timer: float = 0.0
+        self._done: bool = False
+        self._frame: int = 0
 
     # ── Game contract ─────────────────────────────────────────────────────────
 
@@ -52,14 +41,10 @@ class BombGame(Game):
             friction=1.0,
         )
 
-    def get_keybindings(self) -> dict:
-        return {
-            "WASD":  "Move",
-            "SPACE": "Throw bomb to nearest player",
-        }
+   
 
-    def create_extension(self, player) -> BombExtension:
-        ext  = BombExtension(player)
+    def create_extension(self, player) -> FireBallExtension:
+        ext  = FireBallExtension(player)
         body = PhysicsBody(
             random.randint(80, 720),
             random.randint(80, 520),
@@ -72,7 +57,8 @@ class BombGame(Game):
     def setup(self) -> None:
         self._font_lg   = pygame.font.SysFont("monospace", 28, bold=True)
         self._font_sm   = pygame.font.SysFont("monospace", 17)
-        self._time_left = ROUND_TIME
+        self._tiles     = []
+        self._spawn_timer = 0.0
         self._done      = False
         self._frame     = 0
 
@@ -80,17 +66,11 @@ class BombGame(Game):
             if player.extension and player.extension.body:
                 self.engine.world.add_body(player.extension.body)
 
-        # [AUTHORITY] picks who starts with the bomb
-        if self.is_authority and self.players:
-            random.choice(self.players).extension.receive_bomb()
-            self._broadcast_state()
-
     # ── Update ────────────────────────────────────────────────────────────────
 
     def update(self, events: list[pygame.event.Event], dt: float) -> None:
         if self._done:
             return
-
         self._frame += 1
 
         if self.is_authority:
@@ -100,21 +80,29 @@ class BombGame(Game):
 
     def _update_authority(self, events, dt: float) -> None:
         """
-        [AUTHORITY] Full game logic - timers, collision resolution, bomb transfer.
+        [AUTHORITY] Full game logic - timers, collision resolution, tile spawning.
         """
-        # [AUTHORITY] Count down the timer
-        self._time_left -= dt
-        if self._time_left <= 0:
-            self._explode()
-            return
+        # Spawn tiles
+        self._spawn_timer += dt
+        if self._spawn_timer >= SPAWN_INTERVAL:
+            self._spawn_timer = 0.0
+            self._spawn_tile()
+
+        # Move tiles
+        for tile in self._tiles[:]:
+            tile.position.y += TILE_SPEED * dt
+            if tile.position.y > 600:
+                self._tiles.remove(tile)
+                self.engine.world.remove_body(tile)
 
         # Read local (host) player input directly
         self._apply_local_movement(self.players[0], events)
         self._move_all_players()
 
-        # [AUTHORITY] Periodic state broadcast so peers stay up to date
-        if self._frame % SYNC_EVERY == 0:
-            self._broadcast_state()
+        # Check for game over
+        alive_players = [p for p in self.players if p.extension and p.extension.is_alive]
+        if len(alive_players) <= 1:
+            self._done = True
 
     def _update_peer(self, events, dt: float) -> None:
         """
@@ -145,12 +133,6 @@ class BombGame(Game):
         if dx != 0 or dy != 0:
             self._send_input({"action": "move", "dx": dx, "dy": dy})
 
-        # Request a bomb throw — authority decides if it succeeds
-        for event in events:
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                if ext.has_bomb:
-                    self._send_input({"action": "throw"})
-
     # ── on_input_received — authority applies peer inputs ─────────────────────
 
     def on_input_received(self, player_id: str, input_data: dict) -> None:
@@ -169,49 +151,37 @@ class BombGame(Game):
             body.position.x = max(bounds[0], min(bounds[2] - PLAYER_SIZE, body.position.x + dx))
             body.position.y = max(bounds[1], min(bounds[3] - PLAYER_SIZE, body.position.y + dy))
 
-        elif action == "throw":
-            # [AUTHORITY] Validate and execute the throw
-            ext = player.extension
-            if ext.can_throw():
-                target = self._nearest_other(player)
-                if target:
-                    ext.throw_bomb()
-                    target.extension.receive_bomb()
-                    self._broadcast_state()   # immediate sync on state change
-
     # ── Collision — authority only ────────────────────────────────────────────
 
     def on_collision(self, a: PhysicsBody, b: PhysicsBody) -> None:
-        """[AUTHORITY] Transfer bomb on body contact."""
+        """[AUTHORITY] Handle player-tile collisions."""
         if not self.is_authority:
             return
-        ea: BombExtension = a.owner
-        eb: BombExtension = b.owner
-        if not (ea and eb):
-            return
-        if ea.has_bomb and not eb.has_bomb:
-            ea.throw_bomb()
-            eb.receive_bomb()
-            self._broadcast_state()
-        elif eb.has_bomb and not ea.has_bomb:
-            eb.throw_bomb()
-            ea.receive_bomb()
-            self._broadcast_state()
+        # Check if one is player and one is tile
+        ext_a = getattr(a, 'owner', None)
+        ext_b = getattr(b, 'owner', None)
+        if isinstance(ext_a, FireBallExtension) and b in self._tiles:
+            ext_a.lose_life()
+            self._tiles.remove(b)
+            self.engine.world.remove_body(b)
+        elif isinstance(ext_b, FireBallExtension) and a in self._tiles:
+            ext_b.lose_life()
+            self._tiles.remove(a)
+            self.engine.world.remove_body(a)
 
     # ── Sync state (authority → peers) ───────────────────────────────────────
 
     def get_sync_state(self) -> dict:
         """
         [AUTHORITY] Snapshot all [AUTHORITY]-tagged values.
-        Positions are [LOCAL] so they are NOT included here.
         """
         return {
-            "time_left": self._time_left,
-            "done":      self._done,
-            "players":   {
+            "done": self._done,
+            "tiles": [(t.position.x, t.position.y) for t in self._tiles],
+            "players": {
                 p.player_id: {
-                    "has_bomb": p.extension.has_bomb,
-                    "lives":    p.extension.lives,
+                    "lives": p.extension.lives if p.extension else 0,
+                    "score": getattr(p.extension, "score", 0),
                 }
                 for p in self.players if p.extension
             },
@@ -219,15 +189,31 @@ class BombGame(Game):
 
     def apply_sync_state(self, state: dict) -> None:
         """[PEER] Apply authoritative state received from the host."""
-        self._time_left = state.get("time_left", self._time_left)
-        self._done      = state.get("done",      self._done)
+        self._done = state.get("done", self._done)
+
+        # Update tiles
+        tile_positions = state.get("tiles", [])
+        # Remove extra tiles
+        while len(self._tiles) > len(tile_positions):
+            tile = self._tiles.pop()
+            self.engine.world.remove_body(tile)
+        # Add missing tiles or update positions
+        for i, (x, y) in enumerate(tile_positions):
+            if i < len(self._tiles):
+                self._tiles[i].position.x = x
+                self._tiles[i].position.y = y
+            else:
+                tile = PhysicsBody(x, y, TILE_SIZE, TILE_SIZE)
+                self._tiles.append(tile)
+                self.engine.world.add_body(tile)
 
         player_states = state.get("players", {})
         for player in self.players:
             pdata = player_states.get(player.player_id)
             if pdata and player.extension:
-                player.extension.has_bomb = pdata["has_bomb"]
-                player.extension.lives    = pdata["lives"]
+                player.extension.lives = pdata.get("lives", player.extension.lives)
+                if hasattr(player.extension, "score"):
+                    player.extension.score = pdata.get("score", player.extension.score)
 
     # ── Render ────────────────────────────────────────────────────────────────
 
@@ -235,6 +221,12 @@ class BombGame(Game):
         surface.fill((18, 18, 36))
         pygame.draw.rect(surface, (50, 50, 100),
                          pygame.Rect(0, 0, 800, 600), 4)
+
+        # Draw tiles
+        for tile in self._tiles:
+            rect = tile.get_world_rect()
+            pygame.draw.rect(surface, (255, 100, 20), rect, border_radius=5)
+            pygame.draw.rect(surface, (255, 200, 50), rect, 2, border_radius=5)
 
         for player in self.players:
             ext  = player.extension
@@ -246,14 +238,6 @@ class BombGame(Game):
             pygame.draw.rect(surface, player.color, rect, border_radius=10)
             pygame.draw.rect(surface, (255, 255, 255), rect, 2, border_radius=10)
 
-            if ext.has_bomb:
-                cx, cy = rect.centerx, rect.centery
-                pygame.draw.circle(surface, (30, 30, 30),   (cx, cy), 18)
-                pygame.draw.circle(surface, (255, 100, 20), (cx, cy), 18, 3)
-                fuse_col = (255, 80, 80) if self._time_left < 10 else (255, 215, 0)
-                pygame.draw.line(surface, fuse_col,
-                                 (cx, cy - 18), (cx + 8, cy - 28), 3)
-
             lbl = self._font_sm.render(player.name, True, (230, 230, 230))
             surface.blit(lbl, (rect.centerx - lbl.get_width() // 2, rect.y - 22))
 
@@ -262,10 +246,6 @@ class BombGame(Game):
                     surface, (220, 50, 70),
                     (rect.x + i * 16, rect.bottom + 10), 6,
                 )
-
-        t_col = (255, 60, 60) if self._time_left < 10 else (220, 220, 255)
-        t_lbl = self._font_lg.render(f"{max(0, int(self._time_left))}s", True, t_col)
-        surface.blit(t_lbl, (400 - t_lbl.get_width() // 2, 12))
 
         if self._done:
             self._render_end_overlay(surface)
@@ -281,6 +261,12 @@ class BombGame(Game):
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
+    def _spawn_tile(self) -> None:
+        x = random.randint(0, 800 - TILE_SIZE)
+        tile = PhysicsBody(x, -TILE_SIZE, TILE_SIZE, TILE_SIZE)
+        self._tiles.append(tile)
+        self.engine.world.add_body(tile)
+
     def _apply_local_movement(self, player, events) -> None:
         """Authority reads its own player's keyboard directly."""
         if not player or not player.extension or not player.extension.body:
@@ -295,15 +281,6 @@ class BombGame(Game):
              ( MOVE_SPEED if keys[pygame.K_s] else 0)
         body.velocity = pygame.Vector2(dx, dy)
 
-        for event in events:
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                if ext.can_throw():
-                    target = self._nearest_other(player)
-                    if target:
-                        ext.throw_bomb()
-                        target.extension.receive_bomb()
-                        self._broadcast_state()
-
     def _move_all_players(self) -> None:
         bounds = self.engine.world.config.bounds
         for player in self.players:
@@ -313,23 +290,6 @@ class BombGame(Game):
             body.position += body.velocity
             body.position.x = max(bounds[0], min(bounds[2] - PLAYER_SIZE, body.position.x))
             body.position.y = max(bounds[1], min(bounds[3] - PLAYER_SIZE, body.position.y))
-
-    def _explode(self) -> None:
-        for player in self.players:
-            if player.extension and player.extension.has_bomb:
-                player.extension.lose_life()
-                player.extension.has_bomb = False
-        self._done = True
-        self._broadcast_state()
-
-    def _nearest_other(self, source):
-        if not source.extension:
-            return None
-        pos    = source.extension.body.position
-        others = [p for p in self.players if p is not source and p.extension]
-        if not others:
-            return None
-        return min(others, key=lambda p: pos.distance_to(p.extension.body.position))
 
     def _local_player(self):
         return self.players[0] if self.players else None
@@ -344,5 +304,10 @@ class BombGame(Game):
         overlay = pygame.Surface((800, 600), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 160))
         surface.blit(overlay, (0, 0))
-        lbl = self._font_lg.render("BOOM!", True, (255, 80, 40))
+        alive = [p for p in self.players if p.extension and p.extension.is_alive]
+        if len(alive) == 1:
+            winner = alive[0].name
+            lbl = self._font_lg.render(f"{winner} wins!", True, (255, 215, 0))
+        else:
+            lbl = self._font_lg.render("No winner", True, (255, 215, 0))
         surface.blit(lbl, (400 - lbl.get_width() // 2, 260))
