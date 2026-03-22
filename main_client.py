@@ -17,6 +17,7 @@ from src.session.playlist import GamePlaylist, PlaylistMode
 from src.session.lobby_state import LobbyState
 from src.engine.game_engine import GameEngine
 from src.abstract.player import Player
+from src.minigames.pingpong.pingpong_game import PingpongGame
 from src.minigames.bomb.bomb_game import BombGame
 from src.minigames.snake.snake_game import SnakeGame
 
@@ -253,7 +254,7 @@ class App:
         self._controls_timer = 4.0
 
         self.playlist = GamePlaylist(
-            games=[BombGame],
+            games=[PingpongGame],
             mode=PlaylistMode.RANDOM_NO_REPEAT,
             max_rounds=6,
         )
