@@ -19,13 +19,15 @@ from src.engine.game_engine import GameEngine
 from src.abstract.player import Player
 from src.minigames.pingpong.pingpong_game import PingpongGame
 from src.minigames.bomb.bomb_game import BombGame
+from src.minigames.donkey_kong_counting.dk_counting_game import DKCountingGame
 from src.minigames.snake.snake_game import SnakeGame
 
 
 # ── Registry: add new minigames here ─────────────────────────────────────────
 GAME_REGISTRY: dict[str, type] = {
-    # "bomb":        BombGame,
-    # "bombgame":       BombGame,
+    "bomb":        BombGame,
+    "bombgame":       BombGame,
+    "dkcounting":  DKCountingGame,
     "snake":       SnakeGame,
 }
 
@@ -254,7 +256,7 @@ class App:
         self._controls_timer = 4.0
 
         self.playlist = GamePlaylist(
-            games=[PingpongGame],
+            games=[BombGame, DKCountingGame, SnakeGame],
             mode=PlaylistMode.RANDOM_NO_REPEAT,
             max_rounds=6,
         )
