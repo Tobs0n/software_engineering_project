@@ -12,15 +12,13 @@ SYNC_EVERY      = 2    # broadcast authoritative state every N frames (~30 updat
 SPAWN_INTERVAL  = 45   # frames between spawns (~0.75s at 60fps)
 SPAWN_STOP      = 2700 # stop spawning after this many frames (45s * 60fps)
 
-GOOMBA     = {"color": (139, 90, 43),  "radius": 20, "is_goomba": True,  "bounce_chance": 0.3}
+GOOMBA      = {"color": (139, 90, 43),  "radius": 20, "is_goomba": True,  "bounce_chance": 0.3}
 DISTRACTORS = [
     {"color": (50,  50, 180), "radius": 15, "is_goomba": False, "bounce_chance": 0.7},  # Buzzy Beetle
     {"color": (100, 10,  30), "radius": 30, "is_goomba": False, "bounce_chance": 0.7},  # Extra distractor
     {"color": (20, 160,  80), "radius": 12, "is_goomba": False, "bounce_chance": 0.7},  # Extra distractor
 ]
 
-# At t=0: 1 distractor slot vs 2 goomba slots → few distractors
-# At t=45: 6 distractor slots vs 2 goomba slots → many distractors
 DISTRACTOR_SLOTS_START = 1
 DISTRACTOR_SLOTS_END   = 6
 
@@ -48,13 +46,13 @@ class GoombaGame(Game):
         self._font_lg: pygame.font.Font | None = None
         self._font_sm: pygame.font.Font | None = None
 
-        self._time_left:       float      = ROUND_TIME  # [AUTHORITY]
-        self._done:            bool       = False        # [AUTHORITY] engine exits when True
-        self._showing_results: bool       = False        # [AUTHORITY] end screen visible
-        self._results_timer:   float      = 8.0         # seconds to show results
+        self._time_left:       float      = ROUND_TIME
+        self._done:            bool       = False
+        self._showing_results: bool       = False
+        self._results_timer:   float      = 8.0
         self._frame:           int        = 0
-        self._entities:        list[dict] = []           # [AUTHORITY] {x, y, vx, vy, color, radius}
-        self._correct_count:   int        = 0            # [AUTHORITY]
+        self._entities:        list[dict] = []
+        self._correct_count:   int        = 0
 
     # ── Game contract ─────────────────────────────────────────────────────────
 
@@ -70,19 +68,18 @@ class GoombaGame(Game):
         return {"SPACE": "Count +1"}
 
     def create_extension(self, player) -> GoombaExtension:
-        # No PhysicsBody needed — players don't move in this game
         return GoombaExtension(player)
 
     def setup(self) -> None:
-        self._font_lg        = pygame.font.SysFont("monospace", 28, bold=True)
-        self._font_sm        = pygame.font.SysFont("monospace", 17)
-        self._time_left      = ROUND_TIME
-        self._done           = False
+        self._font_lg         = pygame.font.SysFont("monospace", 28, bold=True)
+        self._font_sm         = pygame.font.SysFont("monospace", 17)
+        self._time_left       = ROUND_TIME
+        self._done            = False
         self._showing_results = False
-        self._results_timer  = 8.0
-        self._frame          = 0
-        self._entities       = []
-        self._correct_count  = 0
+        self._results_timer   = 8.0
+        self._frame           = 0
+        self._entities        = []
+        self._correct_count   = 0
 
         if self.is_authority:
             self._broadcast_state()
@@ -90,7 +87,6 @@ class GoombaGame(Game):
     # ── Update ────────────────────────────────────────────────────────────────
 
     def update(self, events: list[pygame.event.Event], dt: float) -> None:
-        # During results phase: count down then signal engine to exit
         if self._showing_results:
             if self.is_authority:
                 self._results_timer -= dt
@@ -110,45 +106,39 @@ class GoombaGame(Game):
             self._update_peer(events)
 
     def _update_authority(self, events, dt: float) -> None:
-        """[AUTHORITY] Timers, spawning, movement, host input."""
         self._time_left -= dt
         if self._time_left <= 0:
             self._end_game()
             return
 
-        # Spawn a new entity every SPAWN_INTERVAL frames, stop after SPAWN_STOP
         if self._frame % SPAWN_INTERVAL == 0 and self._frame <= SPAWN_STOP:
             self._spawn_entity()
 
         self._move_entities()
 
-        # Read the host player's own keyboard directly
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 host = self.players[0]
                 if host.extension:
                     host.extension.increment()
 
-        # Periodic sync so peers stay up to date
         if self._frame % SYNC_EVERY == 0:
             self._broadcast_state()
 
     def _update_peer(self, events) -> None:
-        """[PEER] Send SPACE press to authority; never modify game state locally."""
         for event in events:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
                 self._send_input({"action": "increment"})
 
-    # ── on_input_received — authority applies peer inputs ─────────────────────
+    # ── on_input_received ─────────────────────────────────────────────────────
 
     def on_input_received(self, player_id: str, input_data: dict) -> None:
-        """[AUTHORITY] A peer pressed SPACE — increment their counter."""
         if input_data.get("action") == "increment":
             player = self._player_by_id(player_id)
             if player and player.extension:
                 player.extension.increment()
 
-    # ── Sync state (authority → peers) ───────────────────────────────────────
+    # ── Sync ──────────────────────────────────────────────────────────────────
 
     def get_sync_state(self) -> dict:
         return {
@@ -165,7 +155,6 @@ class GoombaGame(Game):
         }
 
     def apply_sync_state(self, state: dict) -> None:
-        """[PEER] Apply authoritative state received from the host."""
         self._time_left       = state.get("time_left",       self._time_left)
         self._done            = state.get("done",            self._done)
         self._showing_results = state.get("showing_results", self._showing_results)
@@ -184,14 +173,12 @@ class GoombaGame(Game):
         surface.fill((18, 18, 36))
         pygame.draw.rect(surface, (50, 50, 100), pygame.Rect(0, 0, 800, 600), 4)
 
-        # Draw all moving entities
         for e in self._entities:
             pygame.draw.circle(
                 surface, e["color"],
                 (int(e["x"]), int(e["y"])), e["radius"],
             )
 
-        # HUD: only show the local player's own counter (others are hidden)
         w, h = surface.get_size()
         positions = [
             (0,       h - 40),
@@ -208,27 +195,21 @@ class GoombaGame(Game):
                 label = f"{player.name}: {player.extension.goombacounter}"
                 color = player.color
             else:
-                label = player.name          # counter hidden for others
+                label = player.name
                 color = (130, 130, 130)
             lbl = self._font_sm.render(label, True, color)
             surface.blit(lbl, (x, y))
 
-        # Timer
         t_col = (255, 60, 60) if self._time_left < 10 else (220, 220, 255)
         t_lbl = self._font_lg.render(f"{max(0, int(self._time_left))}s", True, t_col)
         surface.blit(t_lbl, (400 - t_lbl.get_width() // 2, 12))
 
         if self._showing_results:
             self._render_end_overlay(surface)
-            return
 
     # ── Results ───────────────────────────────────────────────────────────────
 
     def get_results(self) -> dict[str, int]:
-        """
-        Rank players by |counter - correct_count|.
-        Winner(s) get 3 stars; everyone else gets 0.
-        """
         diffs = {
             p.player_id: abs(
                 (p.extension.goombacounter if p.extension else 0) - self._correct_count
@@ -244,9 +225,6 @@ class GoombaGame(Game):
     # ── Private helpers ───────────────────────────────────────────────────────
 
     def _spawn_entity(self) -> None:
-        """[AUTHORITY] Pick a random unit type and add it to the entity list.
-        As time runs out, distractors become more frequent.
-        """
         elapsed = ROUND_TIME - self._time_left
         t = min(elapsed / ROUND_TIME, 1.0)
         distractor_slots = int(
@@ -261,9 +239,9 @@ class GoombaGame(Game):
         vy   = random.uniform(-2, 2)
 
         if side == "left":
-            x, vx = -10, random.uniform(4, 10)
+            x, vx = -unit["radius"], random.uniform(4, 10)
         else:
-            x, vx = 810, random.uniform(-4, -10)
+            x, vx = 800 + unit["radius"], random.uniform(-4, -10)
 
         if unit["is_goomba"]:
             self._correct_count += 1
@@ -298,9 +276,9 @@ class GoombaGame(Game):
             self._entities.remove(e)
 
     def _end_game(self) -> None:
-        self._time_left      = 0
+        self._time_left       = 0
         self._showing_results = True
-        self._results_timer  = 8.0
+        self._results_timer   = 8.0
         self._broadcast_state()
 
     def _player_by_id(self, player_id: str):
@@ -314,20 +292,16 @@ class GoombaGame(Game):
         overlay.fill((0, 0, 0, 200))
         surface.blit(overlay, (0, 0))
 
-        # ── Title ─────────────────────────────────────────────────────────────
         title = self._font_lg.render("RESULTS", True, (255, 215, 0))
         surface.blit(title, (400 - title.get_width() // 2, 60))
 
-        # ── Correct count (the answer) ────────────────────────────────────────
         answer_lbl = self._font_lg.render(
             f"Goombas: {self._correct_count}", True, (139, 90, 43)
         )
         surface.blit(answer_lbl, (400 - answer_lbl.get_width() // 2, 110))
 
-        # ── Divider ───────────────────────────────────────────────────────────
         pygame.draw.line(surface, (80, 80, 120), (150, 155), (650, 155), 2)
 
-        # ── Player ranking sorted by closeness ───────────────────────────────
         ranking = sorted(
             self.players,
             key=lambda p: abs(
@@ -345,27 +319,22 @@ class GoombaGame(Game):
             diff      = abs(count - self._correct_count)
             is_winner = diff == best_diff
 
-            # Row background for winner
             if is_winner:
                 pygame.draw.rect(
                     surface, (40, 80, 40),
                     pygame.Rect(140, y - 4, 520, 42), border_radius=6,
                 )
 
-            # Rank number
             rank_col = (255, 215, 0) if is_winner else (160, 160, 160)
             rank_lbl = self._font_lg.render(f"#{rank + 1}", True, rank_col)
             surface.blit(rank_lbl, (160, y))
 
-            # Player name in their own color
             name_lbl = self._font_lg.render(player.name, True, player.color)
             surface.blit(name_lbl, (220, y))
 
-            # Their count
             count_lbl = self._font_lg.render(str(count), True, (230, 230, 230))
             surface.blit(count_lbl, (500, y))
 
-            # Difference from correct answer (e.g. "+3" or "-2" or "✓")
             if diff == 0:
                 diff_str = "✓"
                 diff_col = (0, 255, 120)
@@ -375,11 +344,10 @@ class GoombaGame(Game):
             diff_lbl = self._font_sm.render(diff_str, True, diff_col)
             surface.blit(diff_lbl, (580, y + 6))
 
-        # Countdown to next screen
+            y += 52
+
         countdown = self._font_sm.render(
             f"Next screen in {max(0, int(self._results_timer))}s",
             True, (140, 140, 140),
         )
         surface.blit(countdown, (400 - countdown.get_width() // 2, 555))
-
-        y += 52

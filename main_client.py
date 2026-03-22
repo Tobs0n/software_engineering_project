@@ -17,13 +17,13 @@ from src.session.playlist import GamePlaylist, PlaylistMode
 from src.session.lobby_state import LobbyState
 from src.engine.game_engine import GameEngine
 from src.abstract.player import Player
-from src.minigames.painter.painter_game import PainterGame
+from src.minigames.goomba.goomba_game import GoombaGame
 
 
 # ── Registry: add new minigames here ─────────────────────────────────────────
 GAME_REGISTRY: dict[str, type] = {
-    "painter":        PainterGame,
-    "paintergame":    PainterGame,
+    "goomba":        GoombaGame,
+    "goombagame":    GoombaGame,
 }
 
 
@@ -249,7 +249,7 @@ class App:
         self._controls_timer = 4.0
 
         self.playlist = GamePlaylist(
-            games=[PainterGame],
+            games=[GoombaGame],
             mode=PlaylistMode.RANDOM_NO_REPEAT,
             max_rounds=6,
         )
@@ -323,7 +323,7 @@ class App:
                 local_player_id = p.player_id
                 break
 
-        game_cls = GAME_REGISTRY.get(game_key, PainterGame)
+        game_cls = GAME_REGISTRY.get(game_key, GoombaGame)
         game     = game_cls()
         game.local_player_id = local_player_id   # ← tells the game which player is local
         self.engine.load_game(game, players, is_authority=self._is_host)
