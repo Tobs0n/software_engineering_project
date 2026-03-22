@@ -34,6 +34,8 @@ LAUNCH_FRAMES   = 20
 
 SYNC_EVERY      = 2
 
+TRAIL_MAX       = 30   # maximum trail length at full speed
+
 
 class PingpongGame(Game):
     """
@@ -44,6 +46,7 @@ class PingpongGame(Game):
     ───────────────────────
     [AUTHORITY]  self._ball_*         - ball position/velocity, managed by host
     [AUTHORITY]  self._ball_speed     - current ball speed
+    [AUTHORITY]  self._ball_trail     - recent ball positions for trail rendering
     [AUTHORITY]  self._scores         - team scores [left, right]
     [AUTHORITY]  self._phase          - current game phase
     [AUTHORITY]  self._phase_timer    - frame counter within phase
@@ -77,6 +80,8 @@ class PingpongGame(Game):
         self._ball_vx:    float = BALL_SPEED_INIT
         self._ball_vy:    float = BALL_SPEED_INIT * 0.5
         self._ball_speed: float = BALL_SPEED_INIT
+        self._ball_trail: list[tuple[float, float]] = []
+        self._ball_bounced: bool = False
 
         # [AUTHORITY] game state
         self._scores:      list  = [0, 0]
@@ -86,6 +91,9 @@ class PingpongGame(Game):
         self._last_scorer: int   = 0
         self._done:        bool  = False
         self._frame:       int   = 0
+
+        # set by App before load_game() so each client knows which player is local
+        self.local_player_id: str = ""
 
         # team membership — set in setup()
         self._left_indices:  list[int] = []
@@ -114,7 +122,6 @@ class PingpongGame(Game):
         n = len(self.players)
         assert n in (2, 3, 4)
 
-        # Team assignment
         if n == 2:
             self._left_indices  = [0]
             self._right_indices = [1]
@@ -126,7 +133,7 @@ class PingpongGame(Game):
             self._right_indices = [2, 3]
 
         self._configure_paddles()
-        self._reset_ball(direction=1)
+        self._reset_ball(direction=1)  # first serve always toward player 2
         self._phase       = "fade_in"
         self._phase_timer = 0
         self._anim_timer  = 0
@@ -140,7 +147,6 @@ class PingpongGame(Game):
     # ── Paddle configuration ──────────────────────────────────────────────────
 
     def _configure_paddles(self) -> None:
-        """Assign paddle_x, paddle_height, start_dir to each extension."""
         for i, idx in enumerate(self._left_indices):
             ext = self.players[idx].extension
             if len(self._left_indices) == 1:
@@ -182,11 +188,12 @@ class PingpongGame(Game):
             self._update_peer(events)
 
     def _update_authority(self, events) -> None:
-        # Handle local (host = player 0) SPACE input
         if self._anim_timer == 0 and self._phase == "playing":
-            for event in events:
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                    self.players[0].extension.on_keydown(FIELD_TOP, FIELD_BOTTOM)
+            local = self._local_player()
+            if local:
+                for event in events:
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                        local.extension.on_keydown(FIELD_TOP, FIELD_BOTTOM)
 
         if self._anim_timer > 0:
             self._anim_timer -= 1
@@ -222,7 +229,6 @@ class PingpongGame(Game):
             self._broadcast_state()
 
     def _update_peer(self, events) -> None:
-        """[PEER] Send SPACE to authority; move own paddle locally for responsiveness."""
         local = self._local_player()
         if not local:
             return
@@ -233,11 +239,12 @@ class PingpongGame(Game):
                     ext.on_keydown(FIELD_TOP, FIELD_BOTTOM)
                     self._send_input({"action": "keydown"})
             ext.update(PADDLE_SPEED, FIELD_TOP, FIELD_BOTTOM)
+        elif self._phase in ("paddle_start", "ball_launch"):
+            ext.update(PADDLE_SPEED, FIELD_TOP, FIELD_BOTTOM)
 
     # ── on_input_received ─────────────────────────────────────────────────────
 
     def on_input_received(self, player_id: str, input_data: dict) -> None:
-        """[AUTHORITY] Apply peer SPACE press to their paddle."""
         if input_data.get("action") != "keydown":
             return
         if self._anim_timer > 0 or self._phase != "playing":
@@ -283,8 +290,12 @@ class PingpongGame(Game):
         local_id = self._local_player().player_id if self._local_player() else None
         for player in self.players:
             pdata = state.get("paddles", {}).get(player.player_id)
-            if pdata and player.extension and player.player_id != local_id:
-                player.extension.from_dict(pdata)
+            if pdata and player.extension:
+                if player.player_id != local_id:
+                    player.extension.from_dict(pdata)
+                else:
+                    # Sync position only — keep local dir for responsive input
+                    player.extension.paddle_y = pdata.get("paddle_y", player.extension.paddle_y)
 
     # ── Render ────────────────────────────────────────────────────────────────
 
@@ -305,6 +316,26 @@ class PingpongGame(Game):
                              pygame.Rect(int(ext.paddle_x), int(ext.paddle_y),
                                          PADDLE_W, ext.paddle_height),
                              border_radius=4)
+
+        # Ball trail — built and drawn here so it's identical on both clients
+        if self._anim_timer == 0 and self._phase == "playing":
+            if self._ball_bounced:
+                self._ball_trail.append((self._ball_x, self._ball_y))
+                speed_ratio = max(0.0, (self._ball_speed - BALL_SPEED_INIT) / (BALL_SPEED_MAX - BALL_SPEED_INIT))
+                max_len     = int(speed_ratio * TRAIL_MAX)
+                if len(self._ball_trail) > max_len:
+                    self._ball_trail = self._ball_trail[-max_len:]
+
+            trail_len = len(self._ball_trail)
+            for i, (tx, ty) in enumerate(self._ball_trail):
+                progress = (i + 1) / max(trail_len, 1)
+                alpha    = int(180 * progress)
+                radius   = max(2, int(BALL_SIZE * 0.6 * progress))
+                ts = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(ts, (232, 142, 16, alpha), (radius, radius), radius)
+                surface.blit(ts, (int(tx) - radius, int(ty) - radius))
+        else:
+            self._ball_trail = []
 
         # Ball
         if self._anim_timer == 0:
@@ -346,11 +377,9 @@ class PingpongGame(Game):
         surface.blit(s1, (WIDTH//2 - 60 - s1.get_width(), 16))
         surface.blit(s2, (WIDTH//2 + 60, 16))
 
-        # Controls hint
         hint = self._font_sm.render("SPACE — toggle direction", True, (70, 70, 100))
         surface.blit(hint, (WIDTH//2 - hint.get_width()//2, HEIGHT - 28))
 
-        # Score animation
         if self._anim_timer > 0:
             fade      = self._anim_timer / ANIM_DURATION
             flash_col = lc if self._last_scorer == 0 else rc
@@ -407,11 +436,13 @@ class PingpongGame(Game):
         self._ball_y += self._ball_vy
 
         if self._ball_y - BALL_SIZE <= FIELD_TOP:
-            self._ball_y  = FIELD_TOP + BALL_SIZE
-            self._ball_vy = abs(self._ball_vy)
+            self._ball_y   = FIELD_TOP + BALL_SIZE
+            self._ball_vy  = abs(self._ball_vy)
+            self._ball_bounced = True
         if self._ball_y + BALL_SIZE >= FIELD_BOTTOM:
-            self._ball_y  = FIELD_BOTTOM - BALL_SIZE
-            self._ball_vy = -abs(self._ball_vy)
+            self._ball_y   = FIELD_BOTTOM - BALL_SIZE
+            self._ball_vy  = -abs(self._ball_vy)
+            self._ball_bounced = True
 
     def _check_collisions(self) -> None:
         ball_rect = pygame.Rect(
@@ -448,21 +479,23 @@ class PingpongGame(Game):
                 self._done = True
             self._broadcast_state()
 
-    def _start_round(self, direction: int) -> None:
+    def _start_round(self, direction: int = 1) -> None:
         for player in self.players:
             player.extension.reset_position(FIELD_TOP, FIELD_HEIGHT)
-        self._reset_ball(direction)
+        self._reset_ball(direction=direction)
         self._phase       = "fade_in"
         self._phase_timer = 0
 
-    def _reset_ball(self, direction: int) -> None:
-        self._ball_x     = float(WIDTH  // 2)
-        self._ball_y     = float(FIELD_TOP + FIELD_HEIGHT // 2)
-        self._ball_vx    = BALL_SPEED_INIT * direction
-        self._ball_vy    = random.choice([-1, 1]) * random.uniform(
+    def _reset_ball(self, direction: int = 1) -> None:
+        self._ball_x       = float(WIDTH  // 2)
+        self._ball_y       = float(FIELD_TOP + FIELD_HEIGHT // 2)
+        self._ball_vx      = BALL_SPEED_INIT * direction
+        self._ball_vy      = random.choice([-1, 1]) * random.uniform(
             BALL_SPEED_INIT * 0.3, BALL_SPEED_INIT * 0.8
         )
-        self._ball_speed = BALL_SPEED_INIT
+        self._ball_speed   = BALL_SPEED_INIT
+        self._ball_trail   = []
+        self._ball_bounced = False
 
     def _team_color(self, indices: list[int]) -> tuple:
         colors = [self.players[i].color for i in indices]
@@ -471,7 +504,10 @@ class PingpongGame(Game):
         return tuple((colors[0][c] + colors[1][c]) // 2 for c in range(3))
 
     def _local_player(self):
-        return self.players[0] if self.players else None
+        for p in self.players:
+            if p.player_id == self.local_player_id:
+                return p
+        return self.players[0] if self.players else None  # fallback
 
     def _player_by_id(self, player_id: str):
         for p in self.players:

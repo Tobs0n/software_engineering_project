@@ -17,13 +17,13 @@ from src.session.playlist import GamePlaylist, PlaylistMode
 from src.session.lobby_state import LobbyState
 from src.engine.game_engine import GameEngine
 from src.abstract.player import Player
-from src.minigames.pingpong.pingpong_game import PingpongGame
+from src.minigames.painter.painter_game import PainterGame
 
 
 # ── Registry: add new minigames here ─────────────────────────────────────────
 GAME_REGISTRY: dict[str, type] = {
-    "pingpong":        PingpongGame,
-    "pingponggame":       PingpongGame,
+    "painter":        PainterGame,
+    "paintergame":    PainterGame,
 }
 
 
@@ -85,14 +85,14 @@ class MenuScreen:
         self.my_color   = my_color
         self.name_text  = ""
         self.code_text  = ""
-        self.active     = "name"   # which input is focused
+        self.active     = "name"
 
         self.rect_name  = pygame.Rect(220, 160, 360, 44)
         self.rect_code  = pygame.Rect(220, 260, 360, 44)
         self.btn_create = pygame.Rect(160, 360, 200, 50)
         self.btn_join   = pygame.Rect(440, 360, 200, 50)
 
-        self.action     = None   # "create" | "join" | None
+        self.action     = None
         self.error      = ""
 
     def handle_event(self, event: pygame.event.Event) -> None:
@@ -142,7 +142,6 @@ class MenuScreen:
             err = self.font_sm.render(self.error, True, (255, 90, 90))
             surface.blit(err, err.get_rect(centerx=W // 2, y=440))
 
-        # Color swatch
         pygame.draw.circle(surface, self.my_color, (W // 2, 510), 18)
         hint = self.font_sm.render("your colour", True, (100, 110, 140))
         surface.blit(hint, hint.get_rect(centerx=W // 2, y=536))
@@ -201,7 +200,6 @@ class ResultsScreen:
         self._timer   = 5.0
 
     def update(self, dt: float) -> bool:
-        """Returns True when it's time to move on."""
         self._timer -= dt
         return self._timer <= 0
 
@@ -240,9 +238,9 @@ class App:
         self.lobby:     Lobby | None  = None
         self.engine:    GameEngine    = GameEngine(self.screen)
         self.engine.set_sync_callback(self._on_sync_out)
-        self._is_host: bool = False   # set when lobby state arrives
+        self._is_host: bool = False
 
-        self._state = "menu"   # menu | lobby | controls | game | results | gameover
+        self._state = "menu"
 
         self.menu_screen    = MenuScreen(self.font_lg, self.font_sm, self.my_color)
         self.lobby_screen   = LobbyScreen(self.font_lg, self.font_sm)
@@ -251,7 +249,7 @@ class App:
         self._controls_timer = 4.0
 
         self.playlist = GamePlaylist(
-            games=[PingpongGame],
+            games=[PainterGame],
             mode=PlaylistMode.RANDOM_NO_REPEAT,
             max_rounds=6,
         )
@@ -291,12 +289,9 @@ class App:
         self.lobby.code = payload["code"]
         players_data    = payload.get("players", [])
 
-        # Rebuild player list from server data
         self.lobby.players = [Player.from_dict(d) for d in players_data]
 
-        # Find our local Player object (match by name + is_host heuristic)
         if self.my_player is None and self.lobby.players:
-            # The server assigns us as the first player with our name
             for p in self.lobby.players:
                 if p.name == self.menu_screen.name_text.strip():
                     self.my_player = p
@@ -313,24 +308,24 @@ class App:
             self._state = "lobby"
 
     def _on_game_start(self, payload: dict) -> None:
-        game_key     = payload.get("game", "bomb").lower()
+        game_key     = payload.get("game", "pingpong").lower()
         players_data = payload.get("players", [])
 
-        # Rebuild players with server-assigned IDs
+        # Rebuild players — keep server order so team indices are consistent
         players = [Player.from_dict(d) for d in players_data]
 
-        # Identify our player
+        # Find our local player_id
         my_name = self.menu_screen.name_text.strip()
+        local_player_id = ""
         for p in players:
             if p.name == my_name:
-                self.my_player = p
+                self.my_player  = p
+                local_player_id = p.player_id
                 break
 
-        # Put our player first so the engine assigns local input to us
-        players.sort(key=lambda p: (0 if p.name == my_name else 1))
-
-        game_cls = GAME_REGISTRY.get(game_key, PingpongGame)
+        game_cls = GAME_REGISTRY.get(game_key, PainterGame)
         game     = game_cls()
+        game.local_player_id = local_player_id   # ← tells the game which player is local
         self.engine.load_game(game, players, is_authority=self._is_host)
 
         self._controls_game  = game_cls
@@ -338,35 +333,19 @@ class App:
         self._state          = "controls"
 
     def _on_game_state(self, payload: dict) -> None:
-        """
-        [PEER] Received from authority via server relay.
-        Forward to engine which calls game.apply_sync_state().
-        Only meaningful while a game is running.
-        """
         if self._state == "game":
             self.engine.apply_network_state(payload)
 
     def _on_input(self, payload: dict) -> None:
-        """
-        [AUTHORITY] A peer's input arrived via server relay.
-        Forward to engine which calls game.on_input_received().
-        """
         if self._state == "game":
             player_id = payload.pop("player_id", "")
             self.engine.apply_network_input(player_id, payload)
 
     def _on_sync_out(self, data: dict) -> None:
-        """
-        Called by Game._broadcast_state() (authority) and Game._send_input() (peer).
-        The Game base class tags the dict with _type='state' or _type='input'.
-        We route to the correct network message accordingly.
-        """
         msg_type_tag = data.pop("_type", "state")
         if msg_type_tag == "state":
-            # Authority pushing state to all peers
             self.client.send(MsgType.GAME_STATE, data)
         else:
-            # Peer sending input to authority
             self.client.send(MsgType.INPUT, data)
 
     # ── Per-frame update ──────────────────────────────────────────────────────
@@ -398,18 +377,15 @@ class App:
             self._controls_timer -= dt
             if self._controls_timer <= 0:
                 self._state = "game"
-                self._first_game_frame = True   # flag: cap dt on entry
+                self._first_game_frame = True
 
         elif self._state == "game":
-            # Cap dt on the first frame to avoid the transition spike
             safe_dt = 0.016 if getattr(self, "_first_game_frame", False) else dt
             self._first_game_frame = False
             still_running = self.engine.tick(events, safe_dt)
             if not still_running:
-                # Collect results, award stars
                 if self.engine.game and self.lobby:
                     results = self.engine.game.get_results()
-                    # Sync stars back to lobby players
                     for p in (self.engine.game.players or []):
                         pts = results.get(p.player_id, 0)
                         p.stars += pts
@@ -442,7 +418,7 @@ class App:
             self._draw_controls()
 
         elif self._state == "game":
-            pass   # engine.tick() already rendered
+            pass
 
         elif self._state == "results":
             self.results_screen.draw(self.screen)
