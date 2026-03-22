@@ -17,6 +17,7 @@ from src.session.playlist import GamePlaylist, PlaylistMode
 from src.session.lobby_state import LobbyState
 from src.engine.game_engine import GameEngine
 from src.abstract.player import Player
+from src.minigames.pingpong.pingpong_game import PingpongGame
 from src.minigames.bomb.bomb_game import BombGame
 from src.minigames.donkey_kong_counting.dk_counting_game import DKCountingGame
 from src.minigames.snake.snake_game import SnakeGame
@@ -333,7 +334,7 @@ class App:
         # Put our player first so the engine assigns local input to us
         players.sort(key=lambda p: (0 if p.name == my_name else 1))
 
-        game_cls = GAME_REGISTRY.get(game_key, BombGame)
+        game_cls = GAME_REGISTRY.get(game_key, SnakeGame)
         game     = game_cls()
         self.engine.load_game(game, players, is_authority=self._is_host)
 
