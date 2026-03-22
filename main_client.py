@@ -21,14 +21,17 @@ from src.minigames.pingpong.pingpong_game import PingpongGame
 from src.minigames.bomb.bomb_game import BombGame
 from src.minigames.donkey_kong_counting.dk_counting_game import DKCountingGame
 from src.minigames.snake.snake_game import SnakeGame
+from src.minigames.avoid_fireballs.avoid_fireballs_game import AvoidFireballsGame
 
 
-# ── Registry: add new minigames here ─────────────────────────────────────────
+# ── Registry: add new minigames here ─────────────────────────────────────────────────────────
 GAME_REGISTRY: dict[str, type] = {
-    "bomb":        BombGame,
+    "bomb":           BombGame,
     "bombgame":       BombGame,
     "dkcounting":  DKCountingGame,
     "snake":       SnakeGame,
+    "avoid_fireballs": AvoidFireballsGame,
+    "avoidfireballs": AvoidFireballsGame,
 }
 
 
