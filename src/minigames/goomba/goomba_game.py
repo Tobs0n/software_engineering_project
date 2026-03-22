@@ -174,8 +174,11 @@ class GoombaGame(Game):
         pygame.draw.rect(surface, (50, 50, 100), pygame.Rect(0, 0, 800, 600), 4)
 
         for e in self._entities:
+            col = e["color"]
+            if e.get("flash_timer", 0) > 0:
+                col = tuple(max(0, v - 80) for v in col)
             pygame.draw.circle(
-                surface, e["color"],
+                surface, col,
                 (int(e["x"]), int(e["y"])), e["radius"],
             )
 
@@ -252,6 +255,7 @@ class GoombaGame(Game):
             "color":         unit["color"],
             "radius":        unit["radius"],
             "bounce_chance": unit["bounce_chance"],
+            "is_goomba":     unit["is_goomba"],
         })
 
     def _move_entities(self) -> None:
@@ -261,6 +265,10 @@ class GoombaGame(Game):
             e["x"] += e["vx"]
             e["y"] += e["vy"]
 
+            # Tick flash timer down
+            if e.get("flash_timer", 0) > 0:
+                e["flash_timer"] -= 1
+
             # Bounce off top/bottom
             if e["y"] + e["radius"] > 600 or e["y"] - e["radius"] < 0:
                 e["vy"] *= -1
@@ -269,6 +277,8 @@ class GoombaGame(Game):
             if e["x"] > 800 + e["radius"] or e["x"] < -e["radius"]:
                 if random.random() < e.get("bounce_chance", 0.5):
                     e["vx"] *= -1
+                    if e.get("is_goomba"):
+                        e["flash_timer"] = 14
                 else:
                     to_remove.append(e)
 
