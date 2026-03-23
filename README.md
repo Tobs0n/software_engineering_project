@@ -62,3 +62,18 @@ python main_client.py
 | Key | Action |
 |-----|--------|
 | WASD | Move |
+
+### Goomba game
+| Key | Action |
+|-----|--------|
+| SPACE | Count 1 brown dot (goomba) |
+
+### Pingpong game
+| Key | Action |
+|-----|--------|
+| SPACE | Change the direction of paddle |
+
+### Painter game
+| Key | Action |
+|-----|--------|
+| WASD | Move around to color the grid | Detonate bomb powerup |
