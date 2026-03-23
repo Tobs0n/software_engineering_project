@@ -58,7 +58,7 @@ python main_client.py
 | WASD | Move |
 | SPACE | Throw bomb to nearest player |
 
-### Avoid fireballs 
-| Key         | Action| 
-| WASD/ Arrows| Move|
-
+### Avoid fireballs game
+| Key | Action |
+|-----|--------|
+| WASD | Move |
