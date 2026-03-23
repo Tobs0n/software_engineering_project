@@ -76,4 +76,5 @@ python main_client.py
 ### Painter game
 | Key | Action |
 |-----|--------|
-| WASD | Move around to color the grid | Detonate bomb powerup |
+| WASD | Move around to color the grid |
+| SPACE | Detonate bomb powerup |
