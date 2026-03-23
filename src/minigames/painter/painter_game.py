@@ -181,7 +181,7 @@ class PainterGame(Game):
 
     def get_keybindings(self) -> dict:
         """Return human-readable keybinding hints for the HUD."""
-        return {"WASD": "Move", "SPACE": "Detonate bomb powerup"}
+        return {"WASD": "Move to color the grid", "SPACE": "Detonate bomb powerup"}
 
     def create_extension(self, player) -> PainterExtension:
         """Create a :class:`PainterExtension` and attach a physics body to it.

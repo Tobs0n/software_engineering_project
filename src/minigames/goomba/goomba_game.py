@@ -163,7 +163,7 @@ class GoombaGame(Game):
 
     def get_keybindings(self) -> dict:
         """Return the human-readable keybinding hints shown in the HUD."""
-        return {"SPACE": "Count +1"}
+        return {"SPACE": "Goomba count +1 (brown dot)"}
 
     def create_extension(self, player) -> GoombaExtension:
         """Create and return a :class:`GoombaExtension` for *player*.
