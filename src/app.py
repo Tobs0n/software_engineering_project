@@ -4,16 +4,16 @@ import sys
 
 import pygame
 
-from network.client import Client
-from network.messages import MsgType
-from session.lobby import Lobby
-from session.playlist import GamePlaylist, PlaylistMode
-from engine.game_engine import GameEngine
-from abstract.player import Player
-from minigames.snake.snake_game import SnakeGame
+from src.network.client import Client
+from src.network.messages import MsgType
+from src.session.lobby import Lobby
+from src.session.playlist import GamePlaylist, PlaylistMode
+from src.engine.game_engine import GameEngine
+from src.abstract.player import Player
+from src.minigames.snake.snake_game import SnakeGame
 
-from constants import W, H, FPS, COLORS, GAME_REGISTRY
-from screens import MenuScreen, LobbyScreen, GameSelectionScreen, ResultsScreen
+from src.constants import W, H, FPS, COLORS, GAME_REGISTRY
+from src.screens import MenuScreen, LobbyScreen, GameSelectionScreen, ResultsScreen
 
 
 class App:

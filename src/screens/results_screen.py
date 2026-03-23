@@ -1,7 +1,7 @@
 import pygame
 
-from ..constants import W
-from ..abstract.player import Player
+from src.constants import W
+from src.abstract.player import Player
 
 
 class ResultsScreen:

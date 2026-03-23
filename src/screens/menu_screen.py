@@ -1,7 +1,8 @@
 import pygame
 
-from ..constants import W
-from ..ui_helpers import draw_rect_button, draw_input_box
+from src.constants import W
+from src.ui_helpers import draw_rect_button, draw_input_box
+
 
 class MenuScreen:
     """Name entry + Create / Join buttons."""

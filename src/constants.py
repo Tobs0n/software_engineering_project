@@ -1,9 +1,9 @@
-from minigames.avoid_fireballs.avoid_fireballs_game import AvoidFireballsGame
-from minigames.bomb.bomb_game import BombGame
-from minigames.donkey_kong_counting.dk_counting_game import DKCountingGame
-from minigames.pingpong.pingpong_game import PingpongGame
-from minigames.snake.snake_game import SnakeGame
-from minigames.goomba.goomba_game import GoombaGame
+from src.minigames.avoid_fireballs.avoid_fireballs_game import avoid_fireballs_game as AvoidFireballsGame
+from src.minigames.bomb.bomb_game import BombGame
+from src.minigames.donkey_kong_counting.dk_counting_game import DKCountingGame
+from src.minigames.pingpong.pingpong_game import PingpongGame
+from src.minigames.snake.snake_game import SnakeGame
+from src.minigames.goomba.goomba_game import GoombaGame
 
 # ── Registry: add new minigames here ─────────────────────────────────────────
 GAME_REGISTRY: dict[str, type] = {

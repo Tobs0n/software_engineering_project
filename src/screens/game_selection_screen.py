@@ -1,7 +1,7 @@
 import pygame
 
-from ..constants import W, GAME_REGISTRY
-from ..ui_helpers import draw_rect_button
+from src.constants import W, GAME_REGISTRY
+from src.ui_helpers import draw_rect_button
 
 
 class GameSelectionScreen:
